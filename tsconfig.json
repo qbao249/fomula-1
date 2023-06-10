@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "module": "CommonJS",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+
+    /** Pretty this file */
+    "pretty": true,
+    "lib": ["es6", "dom"],
+    "outDir": "./dist",
+    "moduleResolution": "node",
+    "strict": true,
+    "target": "ES6",
+    "baseUrl": "src",
+    "paths": {}
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "babel.config.js", "jest.config.js", "**/__tests__/*"],
+  "types": ["jest"]
+}

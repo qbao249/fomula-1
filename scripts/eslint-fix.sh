@@ -1,0 +1,1 @@
+rm -rf dist && yarn eslint --fix --ext ".js,.ts,.tsx" .

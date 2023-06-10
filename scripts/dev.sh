@@ -1,0 +1,1 @@
+yarn build && nodemon dist/index.js

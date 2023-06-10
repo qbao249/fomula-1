@@ -1,0 +1,4 @@
+# ignore all in ...
+# __tests__/ 
+node_modules
+dist
