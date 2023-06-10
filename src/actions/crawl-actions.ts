@@ -210,9 +210,12 @@ export const crawlAllDrivers = async (path: string) => {
         })
       drivers.push({ name, nationality })
     })
+    if (drivers.length) {
+      await saveCrawlFromDriver(drivers)
+    }
   } catch (error) {
     NODE_ENV === 'development' && console.log('crawlAllRaces.error', error)
-    return error
+    throw error
   }
 }
 
@@ -260,7 +263,7 @@ const TEST_TRANSACTION_ABORT = false
 const saveCrawlFromRaceTransaction = new Transaction()
 const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; drivers: IDriver[] }) => {
   const { drivers, races, teams } = props ?? {}
-  await saveCrawlFromRaceTransaction.runTransaction('testSessionId', async (currSession) => {
+  await saveCrawlFromRaceTransaction.runTransaction('testId', async (currSession) => {
     // TODO: save data
     const raceBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
     races.forEach((_r) => {
@@ -281,7 +284,7 @@ const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; driver
     const teamBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
     teams.forEach((_t) => {
       if (_t?.name) {
-        const { driverNames, raceIds, ...rest } = _t
+        const { driverNames = [], raceIds = [], ...rest } = _t
         const $set: MatchKeysAndValues<Omit<ITeam, 'driverNames' | 'raceIds'>> = rest
         const $addToSet: SetFields<Pick<ITeam, 'driverNames' | 'raceIds'>> = {
           driverNames: { $each: driverNames },
@@ -298,7 +301,7 @@ const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; driver
     const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
     drivers.forEach((_d) => {
       if (_d?.name) {
-        const { raceIds, ...rest } = _d
+        const { raceIds = [], ...rest } = _d
         const $set: MatchKeysAndValues<IDriver> = rest
         const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
         driverBulkWriteOperations.push({
@@ -314,3 +317,21 @@ const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; driver
   })
 }
 
+const saveCrawlFromDriver = async (drivers: IDriver[]) => {
+  const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+  drivers.forEach((_d) => {
+    if (_d?.name) {
+      const { raceIds = [], ...rest } = _d
+      const $set: MatchKeysAndValues<IDriver> = rest
+      const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
+      driverBulkWriteOperations.push({
+        updateOne: {
+          filter: { name: _d.name },
+          update: { $set, $addToSet },
+          upsert: true,
+        },
+      })
+    }
+  })
+  await Driver.bulkWrite(driverBulkWriteOperations)
+}
