@@ -14,7 +14,7 @@ export interface IRace {
    */
   id: string
   grandPrix: string
-  dateTime?: number
+  date?: number
   records?: { [teamName: string]: { [driverName: string]: IRecord } }
   teamNames?: string[]
   driverNames?: string[]
