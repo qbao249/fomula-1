@@ -46,7 +46,7 @@ app.post('/api/crawl/driver', async (req, res) => {
 })
 
 // Search routers
-app.post('/api/search', async (req, res) => {
+app.post('/api/race/search', async (req, res) => {
   try {
     const { filters } = req?.body ?? {}
     const data = await searchRace(filters)
