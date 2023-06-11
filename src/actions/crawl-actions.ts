@@ -57,6 +57,8 @@ export const crawlAllRaces = async (path: string) => {
       let drivers: IDriver[] = []
 
       const results = await Promise.all(crawlRacePromises)
+      console.log('results', results.length)
+
       results.forEach((_r, _rIndex) => {
         const { records, id: raceId } = _r as IRace
         forIn(records, (_team: any, _teamK: string) => {
@@ -119,7 +121,7 @@ export const crawlRace = async (path: string) => {
     const $ = cheerio.load(html) //loading of complete HTML body
     const data: IRace = { id: raceId, grandPrix }
     $('.resultsarchive-col-right .resultsarchive-table tbody tr').each(function (_rowIndex, _row) {
-      // console.log('_rowIndex:', _rowIndex) //index;
+      // console.log('_row:', $(_row).text()) //index;
       let position = 0
       let no = 0
       let driverName = ''
@@ -163,9 +165,11 @@ export const crawlRace = async (path: string) => {
           }
         })
       // console.log('crawlWebsite.race-infos', { position, no, driverName, team, laps, result, points })
-      if (!data.records) data.records = {}
-      if (!data.records[team]) data.records[team] = {}
-      data.records[team][driverName] = { driverName, teamName: team, laps, no, points, position, result }
+      // if (!data.records) data.records = {}
+      // if (!data.records[team]) data.records[team] = {}
+      // data.records[team][driverName] = { driverName, teamName: team, laps, no, points, position, result }
+      if (!data.records) data.records = []
+      data.records.push({ driverName, teamName: team, laps, no, points, position, result })
     })
 
     return data
