@@ -6,7 +6,6 @@ const Schema = mongoose.Schema
 const DriverSchema = new Schema<IDriver>({
   name: { type: String, required: true },
   nationality: String,
-  raceIds: Array<string>,
   teamName: String,
 })
 

@@ -62,13 +62,13 @@ export const and = (...params: any[]) => {
   const filteredParams = params.filter((param) => {
     if (param) return true
   })
-  return { $and: filteredParams }
+  return filteredParams.length ? { $and: filteredParams } : {}
 }
 export const or = (...params: any[]) => {
   const filteredParams = params.filter((param) => {
     if (param) return true
   })
-  return { $or: filteredParams }
+  return filteredParams.length ? { $or: filteredParams } : {}
 }
 
 export const upsertToArray = (element: any, arrayField: string) => {
