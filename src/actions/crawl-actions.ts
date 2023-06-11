@@ -61,35 +61,47 @@ export const crawlAllRaces = async (path: string) => {
 
       results.forEach((_r, _rIndex) => {
         const { records, id: raceId } = _r as IRace
-        forIn(records, (_team: any, _teamK: string) => {
-          forIn(_team, (_driver: any, _driverK) => {
-            if (!driverRaceIds[_driverK]) driverRaceIds[_driverK] = []
-            driverRaceIds[_driverK].push(raceId)
-            if (!teamDriverNames[_teamK]) {
-              teamDriverNames[_teamK] = [_driverK]
-              teams.push({ name: _teamK })
-            } else if (!includes(teamDriverNames[_teamK], _driverK)) {
-              teamDriverNames[_teamK].push(_driverK)
-              teams.push({ name: _teamK })
-            }
-            if (!raceDriverNames[raceId]) raceDriverNames[raceId] = []
-            raceDriverNames[raceId].push(_driverK)
-            drivers.push({ name: _driverK, teamName: _teamK })
-          })
-          if (!teamRaceIds[_teamK]) teamRaceIds[_teamK] = []
-          teamRaceIds[_teamK].push(raceId)
-          if (!raceTeamNames[raceId]) raceTeamNames[raceId] = []
-          raceTeamNames[raceId].push(_teamK)
+        // forIn(records, (_team: any, _teamK: string) => {
+        //   forIn(_team, (_driver: any, _driverK) => {
+        //     if (!driverRaceIds[_driverK]) driverRaceIds[_driverK] = []
+        //     driverRaceIds[_driverK].push(raceId)
+        //     if (!teamDriverNames[_teamK]) {
+        //       teamDriverNames[_teamK] = [_driverK]
+        //       teams.push({ name: _teamK })
+        //     } else if (!includes(teamDriverNames[_teamK], _driverK)) {
+        //       teamDriverNames[_teamK].push(_driverK)
+        //       teams.push({ name: _teamK })
+        //     }
+        //     if (!raceDriverNames[raceId]) raceDriverNames[raceId] = []
+        //     raceDriverNames[raceId].push(_driverK)
+        //     drivers.push({ name: _driverK, teamName: _teamK })
+        //   })
+        //   if (!teamRaceIds[_teamK]) teamRaceIds[_teamK] = []
+        //   teamRaceIds[_teamK].push(raceId)
+        //   if (!raceTeamNames[raceId]) raceTeamNames[raceId] = []
+        //   raceTeamNames[raceId].push(_teamK)
+        // })
+
+        records?.forEach((_rec) => {
+          const { driverName, teamName } = _rec ?? {}
+          let isNotExistedDriver = drivers.every((_d) => _d.name !== driverName)
+          if (isNotExistedDriver) drivers.push({ name: driverName, teamName })
         })
+
         races.push({
           ..._r,
-          teamNames: raceTeamNames[raceId],
-          driverNames: raceDriverNames[raceId],
+          // teamNames: raceTeamNames[raceId],
+          // driverNames: raceDriverNames[raceId],
           date: dates[_rIndex],
         })
       })
-      drivers = drivers.map((_d) => ({ ..._d, raceIds: driverRaceIds[_d.name] }))
-      teams = teams.map((_t) => ({ ..._t, driverNames: teamDriverNames[_t.name], raceIds: teamRaceIds[_t.name] }))
+
+      drivers.forEach((_d) => {
+        const { teamName, name: driverName } = _d
+        let isNotExistedTeam = teams.every((_t) => _t.name !== teamName)
+        if (isNotExistedTeam) teams.push({ name: driverName })
+      })
+
       await saveCrawlFromRace({ drivers, teams, races })
       console.log('saveCrawlFromRace after')
     }
@@ -272,7 +284,7 @@ const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; driver
     const raceBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
     races.forEach((_r) => {
       if (_r?.id) {
-        const { driverNames, teamNames, ...rest } = _r
+        const { driverNames = [], teamNames = [], ...rest } = _r
         const $set: MatchKeysAndValues<Omit<IRace, 'driverNames' | 'teamNames'>> = rest
         const $addToSet: SetFields<Pick<IRace, 'driverNames' | 'teamNames'>> = {
           driverNames: { $each: driverNames },
@@ -307,6 +319,7 @@ const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; driver
       if (_d?.name) {
         const { raceIds = [], ...rest } = _d
         const $set: MatchKeysAndValues<IDriver> = rest
+
         const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
         driverBulkWriteOperations.push({
           updateOne: {
