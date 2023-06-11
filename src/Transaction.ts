@@ -1,7 +1,6 @@
 import mongoose, { ClientSession } from 'mongoose'
 
 type Sessions = { [user_id: string]: ClientSession | undefined }
-// type RetryFns = { [user_id: string]: (() => Promise<void>) | undefined }
 
 const isTransientTransactionError = (error?: any): boolean => {
   // eslint-disable-next-line no-prototype-builtins

@@ -1,13 +1,15 @@
 import cheerio from 'cheerio'
 import request from 'request-promise'
 import { forIn, includes, toNumber } from 'lodash'
-import { IDriver, IRace } from '../types/model-types'
+import { IDriver, IRace, ITeam } from '../types/model-types'
 import { NODE_ENV } from '../env-vars'
 import { FOMULA_1_BASE_URL } from '../constants/baseUrls'
 import { Transaction } from '../Transaction'
 import { Race } from '../models/Race'
 import { Driver } from '../models/Driver'
 import { Team } from '../models/Team'
+import mongoose from 'mongoose'
+import { AnyBulkWriteOperation, SetFields, MatchKeysAndValues } from 'mongodb'
 
 // Race
 export const crawlAllRaces = async (path: string) => {
@@ -18,6 +20,7 @@ export const crawlAllRaces = async (path: string) => {
     const html = await request(url)
     const $ = cheerio.load(html) //loading of complete HTML body
     const paths: string[] = []
+    const dates: number[] = []
     const crawlRacePromises: any[] = []
     $('.resultsarchive-table tbody tr').each((_rowIndex, _row) => {
       $(_row)
@@ -35,41 +38,76 @@ export const crawlAllRaces = async (path: string) => {
                 }
               }
               break
+
+            case 2:
+              dates.push(new Date($(_col).text()).getTime() ?? 0)
+              break
           }
         })
     })
-    const driverRaceIds: { [driverName: string]: string[] } = {}
-    const teamRaceIds: { [teamName: string]: string[] } = {}
-    const teamDriverNames: { [teamName: string]: string[] } = {}
-    const raceDriverNames: { [raceName: string]: string[] } = {}
-    const raceTeamNames: { [raceName: string]: string[] } = {}
     if (paths.length) {
+      const driverRaceIds: { [driverName: string]: string[] } = {}
+      const teamRaceIds: { [teamName: string]: string[] } = {}
+      const teamDriverNames: { [teamName: string]: string[] } = {}
+      const raceDriverNames: { [raceName: string]: string[] } = {}
+      const raceTeamNames: { [raceName: string]: string[] } = {}
+
+      const races: IRace[] = []
+      let teams: ITeam[] = []
+      let drivers: IDriver[] = []
+
       const results = await Promise.all(crawlRacePromises)
-      results.forEach((_r) => {
+      console.log('results', results.length)
+
+      results.forEach((_r, _rIndex) => {
         const { records, id: raceId } = _r as IRace
-        forIn(records, (_team: any, _teamK: string) => {
-          forIn(_team, (_driver: any, _driverK) => {
-            if (!driverRaceIds[_driverK]) driverRaceIds[_driverK] = []
-            driverRaceIds[_driverK].push(raceId)
-            if (!teamDriverNames[_teamK]) {
-              teamDriverNames[_teamK] = [_driverK]
-            } else if (!includes(teamDriverNames[_teamK], _driverK)) {
-              teamDriverNames[_teamK].push(_driverK)
-            }
-            if (!raceDriverNames[raceId]) raceDriverNames[raceId] = []
-            raceDriverNames[raceId].push(_driverK)
-          })
-          if (!teamRaceIds[_teamK]) teamRaceIds[_teamK] = []
-          teamRaceIds[_teamK].push(raceId)
-          if (!raceTeamNames[raceId]) raceTeamNames[raceId] = []
-          raceTeamNames[raceId].push(_teamK)
+        // forIn(records, (_team: any, _teamK: string) => {
+        //   forIn(_team, (_driver: any, _driverK) => {
+        //     if (!driverRaceIds[_driverK]) driverRaceIds[_driverK] = []
+        //     driverRaceIds[_driverK].push(raceId)
+        //     if (!teamDriverNames[_teamK]) {
+        //       teamDriverNames[_teamK] = [_driverK]
+        //       teams.push({ name: _teamK })
+        //     } else if (!includes(teamDriverNames[_teamK], _driverK)) {
+        //       teamDriverNames[_teamK].push(_driverK)
+        //       teams.push({ name: _teamK })
+        //     }
+        //     if (!raceDriverNames[raceId]) raceDriverNames[raceId] = []
+        //     raceDriverNames[raceId].push(_driverK)
+        //     drivers.push({ name: _driverK, teamName: _teamK })
+        //   })
+        //   if (!teamRaceIds[_teamK]) teamRaceIds[_teamK] = []
+        //   teamRaceIds[_teamK].push(raceId)
+        //   if (!raceTeamNames[raceId]) raceTeamNames[raceId] = []
+        //   raceTeamNames[raceId].push(_teamK)
+        // })
+
+        records?.forEach((_rec) => {
+          const { driverName, teamName } = _rec ?? {}
+          let isNotExistedDriver = drivers.every((_d) => _d.name !== driverName)
+          if (isNotExistedDriver) drivers.push({ name: driverName, teamName })
+        })
+
+        races.push({
+          ..._r,
+          // teamNames: raceTeamNames[raceId],
+          // driverNames: raceDriverNames[raceId],
+          date: dates[_rIndex],
         })
       })
+
+      drivers.forEach((_d) => {
+        const { teamName, name: driverName } = _d
+        let isNotExistedTeam = teams.every((_t) => _t.name !== teamName)
+        if (isNotExistedTeam) teams.push({ name: driverName })
+      })
+
+      await saveCrawlFromRace({ drivers, teams, races })
+      console.log('saveCrawlFromRace after')
     }
-    console.log('result', { driverRaceIds, teamRaceIds, teamDriverNames, raceDriverNames, raceTeamNames })
   } catch (error) {
     NODE_ENV === 'development' && console.log('crawlAllRaces.error', error)
-    return error
+    throw error
   }
 }
 
@@ -93,9 +131,9 @@ export const crawlRace = async (path: string) => {
     if (!grandPrix) throw { status: 404, message: 'Please select a grandPrix' }
     const html = await request(url)
     const $ = cheerio.load(html) //loading of complete HTML body
-    const data: IRace = { id: raceId, grandPrix, dateTime: year }
+    const data: IRace = { id: raceId, grandPrix }
     $('.resultsarchive-col-right .resultsarchive-table tbody tr').each(function (_rowIndex, _row) {
-      // console.log('_rowIndex:', _rowIndex) //index;
+      // console.log('_row:', $(_row).text()) //index;
       let position = 0
       let no = 0
       let driverName = ''
@@ -139,9 +177,11 @@ export const crawlRace = async (path: string) => {
           }
         })
       // console.log('crawlWebsite.race-infos', { position, no, driverName, team, laps, result, points })
-      if (!data.records) data.records = {}
-      if (!data.records[team]) data.records[team] = {}
-      data.records[team][driverName] = { driverName, teamName: team, laps, no, points, position, result }
+      // if (!data.records) data.records = {}
+      // if (!data.records[team]) data.records[team] = {}
+      // data.records[team][driverName] = { driverName, teamName: team, laps, no, points, position, result }
+      if (!data.records) data.records = []
+      data.records.push({ driverName, teamName: team, laps, no, points, position, result })
     })
 
     return data
@@ -182,30 +222,16 @@ export const crawlAllDrivers = async (path: string) => {
             case 3:
               nationality = $(_col).text()
               break
-            // case 2:
-            //   break
-            // case 3:
-            //   break
-            // case 4:
-            //   break
-            // case 5:
-            //   break
-            // case 6:
-            //   break
           }
         })
       drivers.push({ name, nationality })
     })
-    // if (crawlDriverPromises.length) {
-    //   const results = await Promise.all(crawlDriverPromises)
-    //   drivers = drivers.map((_d, _dIndex) => {
-    //     return { ..._d, raceIds: results[_dIndex] }
-    //   })
-    // }
-    console.log('drivers: ', drivers)
+    if (drivers.length) {
+      await saveCrawlFromDriver(drivers)
+    }
   } catch (error) {
     NODE_ENV === 'development' && console.log('crawlAllRaces.error', error)
-    return error
+    throw error
   }
 }
 
@@ -248,9 +274,91 @@ export const crawlAllDrivers = async (path: string) => {
 //   }
 // }
 
+const TEST_TRANSACTION_ABORT = false
+
 const saveCrawlFromRaceTransaction = new Transaction()
-const saveCrawlFromRace = async () => {
-  await saveCrawlFromRaceTransaction.runTransaction('testSessionId', async (currSession) => {
-    // TODO: save data
-  })
+const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; drivers: IDriver[] }) => {
+  const { drivers, races, teams } = props ?? {}
+  try {
+    await saveCrawlFromRaceTransaction.runTransaction('testId', async (currSession) => {
+      // TODO: save data
+      const raceBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+      races.forEach((_r) => {
+        if (_r?.id) {
+          const { ...rest } = _r
+          const $set: MatchKeysAndValues<Omit<IRace, 'driverNames' | 'teamNames'>> = rest
+          // const $addToSet: SetFields<Pick<IRace, 'driverNames' | 'teamNames'>> = {
+          //   driverNames: { $each: driverNames },
+          //   teamNames: { $each: teamNames },
+          // }
+          raceBulkWriteOperations.push({
+            updateOne: { filter: { id: _r.id }, update: { $set }, upsert: true },
+          })
+        }
+      })
+      await Race.bulkWrite(raceBulkWriteOperations, { session: currSession })
+
+      const teamBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+      teams.forEach((_t) => {
+        if (_t?.name) {
+          const { ...rest } = _t
+          const $set: MatchKeysAndValues<Omit<ITeam, 'driverNames' | 'raceIds'>> = rest
+          // const $addToSet: SetFields<Pick<ITeam, 'driverNames' | 'raceIds'>> = {
+          //   driverNames: { $each: driverNames },
+          //   raceIds: { $each: raceIds },
+          // }
+          teamBulkWriteOperations.push({
+            updateOne: { filter: { name: _t.name }, update: { $set }, upsert: true },
+          })
+        }
+      })
+      if (TEST_TRANSACTION_ABORT) throw { status: 500, message: 'Abort Transaction' }
+      await Team.bulkWrite(teamBulkWriteOperations, { session: currSession })
+
+      const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+      drivers.forEach((_d) => {
+        if (_d?.name) {
+          const { ...rest } = _d
+          const $set: MatchKeysAndValues<IDriver> = rest
+
+          // const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
+          driverBulkWriteOperations.push({
+            updateOne: {
+              filter: { name: _d.name },
+              update: { $set },
+              upsert: true,
+            },
+          })
+        }
+      })
+      await Driver.bulkWrite(driverBulkWriteOperations, { session: currSession })
+    })
+  } catch (error) {
+    if (NODE_ENV === 'production') throw error
+    console.log('saveCrawlFromRace.error:', error)
+  }
+}
+
+const saveCrawlFromDriver = async (drivers: IDriver[]) => {
+  try {
+    const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+    drivers.forEach((_d) => {
+      if (_d?.name) {
+        const { ...rest } = _d
+        const $set: MatchKeysAndValues<IDriver> = rest
+        // const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
+        driverBulkWriteOperations.push({
+          updateOne: {
+            filter: { name: _d.name },
+            update: { $set },
+            upsert: true,
+          },
+        })
+      }
+    })
+    await Driver.bulkWrite(driverBulkWriteOperations)
+  } catch (error) {
+    if (NODE_ENV === 'production') throw error
+    console.log('saveCrawlFromDriver.error:', error)
+  }
 }
