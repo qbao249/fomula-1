@@ -8,8 +8,6 @@ const RaceSchema = new Schema<IRace>({
   grandPrix: { type: String, required: true },
   date: Number,
   records: Array<IRecord>,
-  driverNames: Array<string>,
-  teamNames: Array<string>,
 })
 
 export const Race = mongoose.model<IRace>('Race', RaceSchema)

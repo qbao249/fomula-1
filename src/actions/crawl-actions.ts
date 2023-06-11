@@ -279,76 +279,86 @@ const TEST_TRANSACTION_ABORT = false
 const saveCrawlFromRaceTransaction = new Transaction()
 const saveCrawlFromRace = async (props: { races: IRace[]; teams: ITeam[]; drivers: IDriver[] }) => {
   const { drivers, races, teams } = props ?? {}
-  await saveCrawlFromRaceTransaction.runTransaction('testId', async (currSession) => {
-    // TODO: save data
-    const raceBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
-    races.forEach((_r) => {
-      if (_r?.id) {
-        const { driverNames = [], teamNames = [], ...rest } = _r
-        const $set: MatchKeysAndValues<Omit<IRace, 'driverNames' | 'teamNames'>> = rest
-        const $addToSet: SetFields<Pick<IRace, 'driverNames' | 'teamNames'>> = {
-          driverNames: { $each: driverNames },
-          teamNames: { $each: teamNames },
+  try {
+    await saveCrawlFromRaceTransaction.runTransaction('testId', async (currSession) => {
+      // TODO: save data
+      const raceBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+      races.forEach((_r) => {
+        if (_r?.id) {
+          const { ...rest } = _r
+          const $set: MatchKeysAndValues<Omit<IRace, 'driverNames' | 'teamNames'>> = rest
+          // const $addToSet: SetFields<Pick<IRace, 'driverNames' | 'teamNames'>> = {
+          //   driverNames: { $each: driverNames },
+          //   teamNames: { $each: teamNames },
+          // }
+          raceBulkWriteOperations.push({
+            updateOne: { filter: { id: _r.id }, update: { $set }, upsert: true },
+          })
         }
-        raceBulkWriteOperations.push({
-          updateOne: { filter: { id: _r.id }, update: { $set, $addToSet }, upsert: true },
-        })
-      }
-    })
-    await Race.bulkWrite(raceBulkWriteOperations, { session: currSession })
+      })
+      await Race.bulkWrite(raceBulkWriteOperations, { session: currSession })
 
-    const teamBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
-    teams.forEach((_t) => {
-      if (_t?.name) {
-        const { driverNames = [], raceIds = [], ...rest } = _t
-        const $set: MatchKeysAndValues<Omit<ITeam, 'driverNames' | 'raceIds'>> = rest
-        const $addToSet: SetFields<Pick<ITeam, 'driverNames' | 'raceIds'>> = {
-          driverNames: { $each: driverNames },
-          raceIds: { $each: raceIds },
+      const teamBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+      teams.forEach((_t) => {
+        if (_t?.name) {
+          const { ...rest } = _t
+          const $set: MatchKeysAndValues<Omit<ITeam, 'driverNames' | 'raceIds'>> = rest
+          // const $addToSet: SetFields<Pick<ITeam, 'driverNames' | 'raceIds'>> = {
+          //   driverNames: { $each: driverNames },
+          //   raceIds: { $each: raceIds },
+          // }
+          teamBulkWriteOperations.push({
+            updateOne: { filter: { name: _t.name }, update: { $set }, upsert: true },
+          })
         }
-        teamBulkWriteOperations.push({
-          updateOne: { filter: { name: _t.name }, update: { $set, $addToSet }, upsert: true },
-        })
-      }
-    })
-    if (TEST_TRANSACTION_ABORT) throw { status: 500, message: 'Abort Transaction' }
-    await Team.bulkWrite(teamBulkWriteOperations, { session: currSession })
+      })
+      if (TEST_TRANSACTION_ABORT) throw { status: 500, message: 'Abort Transaction' }
+      await Team.bulkWrite(teamBulkWriteOperations, { session: currSession })
 
+      const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
+      drivers.forEach((_d) => {
+        if (_d?.name) {
+          const { ...rest } = _d
+          const $set: MatchKeysAndValues<IDriver> = rest
+
+          // const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
+          driverBulkWriteOperations.push({
+            updateOne: {
+              filter: { name: _d.name },
+              update: { $set },
+              upsert: true,
+            },
+          })
+        }
+      })
+      await Driver.bulkWrite(driverBulkWriteOperations, { session: currSession })
+    })
+  } catch (error) {
+    if (NODE_ENV === 'production') throw error
+    console.log('saveCrawlFromRace.error:', error)
+  }
+}
+
+const saveCrawlFromDriver = async (drivers: IDriver[]) => {
+  try {
     const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
     drivers.forEach((_d) => {
       if (_d?.name) {
-        const { raceIds = [], ...rest } = _d
+        const { ...rest } = _d
         const $set: MatchKeysAndValues<IDriver> = rest
-
-        const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
+        // const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
         driverBulkWriteOperations.push({
           updateOne: {
             filter: { name: _d.name },
-            update: { $set, $addToSet },
+            update: { $set },
             upsert: true,
           },
         })
       }
     })
-    await Driver.bulkWrite(driverBulkWriteOperations, { session: currSession })
-  })
-}
-
-const saveCrawlFromDriver = async (drivers: IDriver[]) => {
-  const driverBulkWriteOperations: AnyBulkWriteOperation<any>[] = []
-  drivers.forEach((_d) => {
-    if (_d?.name) {
-      const { raceIds = [], ...rest } = _d
-      const $set: MatchKeysAndValues<IDriver> = rest
-      const $addToSet: SetFields<Pick<IDriver, 'raceIds'>> = { raceIds: { $each: raceIds } }
-      driverBulkWriteOperations.push({
-        updateOne: {
-          filter: { name: _d.name },
-          update: { $set, $addToSet },
-          upsert: true,
-        },
-      })
-    }
-  })
-  await Driver.bulkWrite(driverBulkWriteOperations)
+    await Driver.bulkWrite(driverBulkWriteOperations)
+  } catch (error) {
+    if (NODE_ENV === 'production') throw error
+    console.log('saveCrawlFromDriver.error:', error)
+  }
 }
