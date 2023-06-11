@@ -3,7 +3,8 @@ import { Team } from '../models/Team'
 import { Driver } from '../models/Driver'
 import { PipelineStage } from 'mongoose'
 import { and, or } from '../utils/mongodb-utils'
-import { IDriver, IRecord } from 'types/model-types'
+import { IDriver, IRace, IRecord } from 'types/model-types'
+import { includes } from 'lodash'
 
 const fromMs = (year: number) => new Date(`${year}-01-01`).getTime()
 const toMs = (year: number) => new Date(`${year}-12-31`).getTime()
@@ -11,14 +12,13 @@ const getDriverIndexExpr = <T extends keyof IRecord>(property: T, value: IRecord
   $indexOfArray: [`$records.${property}`, value],
 })
 
-const isValidIndex = () => {}
-
 export const searchRace = async (filters: {
   year: number | number[]
   grandPrix?: string | string[]
   driver: string | string[]
+  team: string | string[]
 }) => {
-  const { year, grandPrix, driver } = filters ?? {}
+  const { year, grandPrix, driver, team } = filters ?? {}
 
   if ((typeof year === 'number' && year < 1950) || (Array.isArray(year) && !year.length)) {
     return []
@@ -41,11 +41,9 @@ export const searchRace = async (filters: {
     $match: and(matchYear, matchGrandPrix),
   }
 
-  const getWinDriverIndexExpr = { $indexOfArray: ['$records.position', 1] }
-
-  const addFieldWinDriver = {
+  const addFieldWinDriverAndTeam = {
     winDriver: {
-      $arrayElemAt: ['$records', getWinDriverIndexExpr],
+      $arrayElemAt: ['$records', getDriverIndexExpr('position', 1)],
     },
   }
 
@@ -75,14 +73,45 @@ export const searchRace = async (filters: {
         }
       : { targetElemAt: [] }
 
+  const addFieldTargetTeams = ''
+
   const stage_2: PipelineStage = {
-    $addFields: { ...addFieldWinDriver, ...addFieldTargetDrivers },
+    $addFields: { ...addFieldWinDriverAndTeam, ...addFieldTargetDrivers },
   }
 
   const stage_3: PipelineStage = {
     $project: { records: 0 },
   }
-  const results = await Race.aggregate([stage_1, stage_2, stage_3])
-  console.log('results:', results.length)
-  return results
+
+  const results = await Race.aggregate([stage_1])
+  const data: any[] = []
+  results.forEach((_r: IRace) => {
+    const { records, ...rest } = _r
+    let el: any = rest
+    let winDriver: IRecord | undefined
+    let winTeam: { name: string; points: number } | undefined
+    const targetDrivers: (typeof winDriver)[] = []
+    const targetTeams: (typeof winTeam)[] = []
+    const teams: { [k: string]: any } = {}
+    records?.forEach((_rec) => {
+      if (!teams[_rec.teamName]) teams[_rec.teamName] = { name: _rec.teamName, points: 0 }
+      teams[_rec.teamName].points += _rec.points
+      if (winDriver?.points ?? 0 < _rec.points) winDriver = _rec
+      if (Array.isArray(driver) && includes(driver, _rec.driverName)) targetDrivers.push(_rec)
+      else if (driver === _rec.driverName) targetDrivers.push(_rec)
+    })
+    Object.entries(teams).forEach(([, _t]) => {
+      if ((winTeam?.points ?? 0) < _t.points) {
+        winTeam = _t
+      }
+      if (Array.isArray(team) && includes(team, _t.name)) targetTeams.push(_t)
+      else if (team === _t.name) targetTeams.push(_t)
+    })
+    el = { ...el, winDriver, winTeam }
+    if (targetDrivers.length) el = { ...el, targetDrivers }
+    if (targetTeams.length) el = { ...el, targetTeams }
+
+    data.push(el)
+  })
+  return data
 }
