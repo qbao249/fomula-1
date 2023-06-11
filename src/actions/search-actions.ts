@@ -115,3 +115,44 @@ export const searchRace = async (filters: {
   })
   return data
 }
+
+export const searchTeam = async (filters: { year: string; team: string; grandPrix: string }) => {
+  const { year, grandPrix } = filters ?? {}
+
+  if ((typeof year === 'number' && year < 1950) || (Array.isArray(year) && !year.length)) {
+    return []
+  }
+
+  const matchYear =
+    Array.isArray(year) && year.length
+      ? or(...year.map((_y) => ({ date: { $gte: fromMs(_y), $lte: toMs(_y) } })))
+      : typeof year === 'number'
+      ? { date: { $gte: fromMs(year), $lte: toMs(year) } }
+      : null
+
+  const matchGrandPrix =
+    Array.isArray(grandPrix) && grandPrix.length
+      ? or(...grandPrix.map((_g) => ({ grandPrix: _g })))
+      : grandPrix
+      ? { grandPrix }
+      : null
+
+  const stage_1: PipelineStage = {
+    $match: and(matchYear, matchGrandPrix),
+  }
+
+  const stage_2: PipelineStage = {
+    $unwind: { path: '$records' },
+  }
+
+  const stage_3: PipelineStage = {
+    $group: { _id: '$records.teamName', points: { $sum: '$records.points' } },
+  }
+
+  const stage_4: PipelineStage = {
+    $sort: { points: -1 },
+  }
+
+  const data = await Race.aggregate([stage_1, stage_2, stage_3, stage_4])
+  return data
+}

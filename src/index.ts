@@ -6,7 +6,7 @@ import mongoose from 'mongoose'
 
 import { MONGO_DB_URL, NODE_ENV, PORT } from './env-vars'
 import { crawlAllDrivers, crawlAllRaces, crawlRace } from './actions/crawl-actions'
-import { searchRace } from './actions/search-actions'
+import { searchTeam, searchRace } from './actions/search-actions'
 
 const isProduction = () => NODE_ENV === 'production'
 
@@ -45,11 +45,20 @@ app.post('/api/crawl/driver', async (req, res) => {
   }
 })
 
-// Search routers
 app.post('/api/race/search', async (req, res) => {
   try {
     const { filters } = req?.body ?? {}
     const data = await searchRace(filters)
+    res.json({ status: 200, message: 'OK', data })
+  } catch (error: any) {
+    res.status(error?.status).json(error)
+  }
+})
+
+app.post('/api/team/search', async (req, res) => {
+  try {
+    const { filters } = req?.body ?? {}
+    const data = await searchTeam(filters)
     res.json({ status: 200, message: 'OK', data })
   } catch (error: any) {
     res.status(error?.status).json(error)
