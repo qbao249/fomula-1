@@ -97,17 +97,34 @@ export const searchRace = async (filters: {
       if (!teams[_rec.teamName]) teams[_rec.teamName] = { name: _rec.teamName, points: 0 }
       teams[_rec.teamName].points += _rec.points
       if (winDriver?.points ?? 0 < _rec.points) winDriver = _rec
-      if (Array.isArray(driver) && includes(driver, _rec.driverName)) targetDrivers.push(_rec)
-      else if (driver === _rec.driverName) targetDrivers.push(_rec)
+      if (Array.isArray(driver)) {
+        driver.forEach((_driver) => {
+          if (typeof _driver === 'string' && _rec.driverName?.toLowerCase()?.match(_driver.toLowerCase())) {
+            targetDrivers.push(_rec)
+          }
+        })
+      } else if (typeof team === 'string' && _rec.driverName?.toLowerCase()?.match(driver.toLowerCase())) {
+        targetDrivers.push(_rec)
+      }
     })
     Object.entries(teams).forEach(([, _t]) => {
       if ((winTeam?.points ?? 0) < _t.points) {
         winTeam = _t
       }
-      if (Array.isArray(team) && includes(team, _t.name)) targetTeams.push(_t)
-      else if (team === _t.name) targetTeams.push(_t)
+
+      if (Array.isArray(team)) {
+        team.forEach((_team) => {
+          if (typeof _team === 'string' && _t.name?.toLowerCase()?.match(_team.toLowerCase())) {
+            targetTeams.push(_t)
+          }
+        })
+      } else if (typeof team === 'string' && _t.name?.toLowerCase()?.match(team.toLowerCase())) {
+        targetTeams.push(_t)
+      }
     })
     el = { ...el, winDriver, winTeam }
+    // console.log('targetTeams:', targetTeams)
+
     if (targetDrivers.length) el = { ...el, targetDrivers }
     if (targetTeams.length) el = { ...el, targetTeams }
 
