@@ -1,6 +1,13 @@
 # Fomula-1 RestAPI
 
+Rest API to search for contents of racing results
+
 Crawling data from 2020 to 2023
+
+Current APIs:
+
+1. search race's infos by filters: will return contents of races, with specified filters
+2. search team'infos by filters: will return contents of teams, with specified filters
 
 ## Setup
 
@@ -19,6 +26,9 @@ MONGO_DB_URL = mongodb+srv://user_001:LHOA0C73q5n3joyW@cluster0.9cxrvjz.mongodb.
 PORT=3030
 NODE_ENV = development
 ```
+
+**_Note_**
+MONGO_DB_URL is provided above is a sensitive info, in the real project will not be located in this file, and it's user role is ReadOnly DB
 
 ## Usage
 
@@ -53,7 +63,7 @@ VALUE=application/json
 
 BODY (JSON format)
 
-Optional properties can be passed to the filter:
+Optional properties can be passed to the filters:
 
 - year:
   - Description: the year when races were recorded
@@ -113,7 +123,7 @@ VALUE=application/json
 
 BODY (JSON format)
 
-Optional properties can be passed to the filter:
+Optional properties can be passed to the filters:
 
 - year:
   - Description: the year when races were recorded

@@ -4,7 +4,7 @@ import { IDriver } from '../types/model-types'
 const Schema = mongoose.Schema
 
 const DriverSchema = new Schema<IDriver>({
-  name: { type: String, required: true },
+  name: { type: String, required: true, unique: true },
   nationality: String,
   teamName: String,
 })
