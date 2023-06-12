@@ -4,8 +4,8 @@ import { IRace, IRecord } from '../types/model-types'
 const Schema = mongoose.Schema
 
 const RaceSchema = new Schema<IRace>({
-  id: { type: String, required: true },
-  grandPrix: { type: String, required: true },
+  id: { type: String, required: true, unique: true },
+  grandPrix: { type: String, required: true, index: true },
   date: Number,
   records: Array<IRecord>,
 })
